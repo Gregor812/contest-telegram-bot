@@ -1,7 +1,7 @@
-﻿using System;
+﻿using Microsoft.Extensions.Configuration;
+using System;
 using System.Threading;
 using System.Threading.Tasks;
-using Microsoft.Extensions.Configuration;
 using TelegramVoteBot.ApiClient.Models;
 using TelegramVoteBot.ApiClient.Persistence;
 
@@ -33,7 +33,7 @@ namespace TelegramVoteBot.ApiClient
             Console.WriteLine("Operation has been cancelled by user");
             CancellationTokenSource.CancelAfter(TimeSpan.FromSeconds(1));
             while (!CancellationTokenSource.IsCancellationRequested)
-            {}
+            { }
             Environment.Exit(-1);
         }
     }

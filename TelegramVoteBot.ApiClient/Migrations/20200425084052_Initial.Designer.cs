@@ -8,7 +8,7 @@ using TelegramVoteBot.ApiClient.Persistence;
 namespace TelegramVoteBot.ApiClient.Migrations
 {
     [DbContext(typeof(BotDbContext))]
-    [Migration("20200424173440_Initial")]
+    [Migration("20200425084052_Initial")]
     partial class Initial
     {
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

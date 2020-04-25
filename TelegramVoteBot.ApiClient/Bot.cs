@@ -1,6 +1,7 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using System;
 using System.Collections.Concurrent;
+using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -17,33 +18,42 @@ namespace TelegramVoteBot.ApiClient
 {
     public class Bot
     {
-        private readonly ConcurrentQueue<Update> _updates = new ConcurrentQueue<Update>();
-        private readonly ConcurrentQueue<Response> _responses = new ConcurrentQueue<Response>();
+        private readonly ConcurrentQueue<Update> _updates =
+            new ConcurrentQueue<Update>();
+        private readonly ConcurrentQueue<Response> _responses
+            = new ConcurrentQueue<Response>();
         private readonly BotDbContext _db;
         private readonly BotConfig _botConfig;
 
         public Bot(BotConfig botConfig, BotDbContext db)
         {
-            _botConfig = botConfig ?? throw new ArgumentNullException(nameof(botConfig));
-            _db = db ?? throw new ArgumentNullException(nameof(db));
+            _botConfig = botConfig ??
+                throw new ArgumentNullException(nameof(botConfig));
+            _db = db ?? 
+                throw new ArgumentNullException(nameof(db));
         }
 
         public async Task StartBotAsync(CancellationToken cancellationToken)
         {
             var botClient = new TelegramBotClient(_botConfig.Token);
 
-            var gettingUpdatesTask = StartGettingUpdatesAsync(botClient, _updates, cancellationToken);
-            var handlingFailedUpdatesTask =
-                StartUpdatesHandlingAsync(_updates, _responses, _botConfig.WorkingChatId, cancellationToken);
-            var handlingResponsesTask =
-                StartResponsesHandlingAsync(botClient, _responses, cancellationToken);
+            var gettingUpdatesTask = StartGettingUpdatesAsync(botClient,
+                _updates, cancellationToken);
+            var handlingUpdatesTask = StartUpdatesHandlingAsync(_updates,
+                _responses, _botConfig.WorkingChatId, cancellationToken);
+            var handlingResponsesTask =StartResponsesHandlingAsync(botClient,
+                _responses, cancellationToken);
 
-            await Task.WhenAll(gettingUpdatesTask, handlingFailedUpdatesTask, handlingResponsesTask)
+            await Task.WhenAll(gettingUpdatesTask,
+                    handlingUpdatesTask,
+                    handlingResponsesTask)
                 .ConfigureAwait(false);
         }
 
-        private async Task StartGettingUpdatesAsync(TelegramBotClient botClient,
-            ConcurrentQueue<Update> updates, CancellationToken cancellationToken)
+        private async Task StartGettingUpdatesAsync(
+            TelegramBotClient botClient,
+            ConcurrentQueue<Update> updates,
+            CancellationToken cancellationToken)
         {
             int updatesOffset = 0;
 
@@ -52,11 +62,15 @@ namespace TelegramVoteBot.ApiClient
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    Console.WriteLine("Getting bot updates...");
+                    Console.WriteLine($"{DateTime.Now:s}: Getting bot updates...");
+
                     var newUpdates = await botClient
-                        .GetUpdatesAsync(offset: updatesOffset, limit: 50, cancellationToken: cancellationToken)
+                        .GetUpdatesAsync(offset: updatesOffset, limit: 50,
+                            cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
-                    Console.WriteLine($"{newUpdates.Length} new update(s)");
+
+                    Console.WriteLine($"{DateTime.Now:s}: {newUpdates.Length} new update(s)");
+
                     if (newUpdates.Any())
                     {
                         updatesOffset = newUpdates.Select(u => u.Id).Max() + 1;
@@ -70,7 +84,7 @@ namespace TelegramVoteBot.ApiClient
                 {
                     var color = Console.ForegroundColor;
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine(e);
+                    Console.WriteLine($"{DateTime.Now:s}: {e}");
                     Console.ForegroundColor = color;
                 }
 
@@ -79,8 +93,10 @@ namespace TelegramVoteBot.ApiClient
             }
         }
 
-        private async Task StartUpdatesHandlingAsync(ConcurrentQueue<Update> updates,
-            ConcurrentQueue<Response> responses, long? workingChatId,
+        private async Task StartUpdatesHandlingAsync(
+            ConcurrentQueue<Update> updates,
+            ConcurrentQueue<Response> responses,
+            long? workingChatId,
             CancellationToken cancellationToken)
         {
             while (true)
@@ -90,7 +106,8 @@ namespace TelegramVoteBot.ApiClient
                 {
                     if (updates.IsEmpty)
                     {
-                        await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken)
+                        await Task.Delay(TimeSpan.FromSeconds(1),
+                                cancellationToken)
                             .ConfigureAwait(false);
                         continue;
                     }
@@ -100,14 +117,16 @@ namespace TelegramVoteBot.ApiClient
                         switch (update.Type)
                         {
                             case UpdateType.Message:
-                                await HandleNewMessageAsync(update.Message, responses, workingChatId, cancellationToken)
+                                Console.WriteLine($"{DateTime.Now:s}: Handling message update...");
+                                await HandleNewMessageAsync(update.Message, responses,
+                                        workingChatId, cancellationToken)
                                     .ConfigureAwait(false);
                                 break;
                             case UpdateType.CallbackQuery:
-                                await HandleNewCallbackQueryAsync(update.CallbackQuery, responses, cancellationToken)
+                                Console.WriteLine($"{DateTime.Now:s}: Handling callback query update...");
+                                await HandleNewCallbackQueryAsync(update.CallbackQuery,
+                                        responses, cancellationToken)
                                     .ConfigureAwait(false);
-                                break;
-                            default:
                                 break;
                         }
                     }
@@ -116,15 +135,17 @@ namespace TelegramVoteBot.ApiClient
                 {
                     var color = Console.ForegroundColor;
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine(e);
+                    Console.WriteLine($"{DateTime.Now:s}: {e}");
                     Console.WriteLine("Cannot handle an update");
                     Console.ForegroundColor = color;
                 }
             }
         }
 
-        private async Task StartResponsesHandlingAsync(TelegramBotClient botClient,
-            ConcurrentQueue<Response> responses, CancellationToken cancellationToken)
+        private async Task StartResponsesHandlingAsync(
+            TelegramBotClient botClient,
+            ConcurrentQueue<Response> responses,
+            CancellationToken cancellationToken)
         {
             while (true)
             {
@@ -133,11 +154,14 @@ namespace TelegramVoteBot.ApiClient
                 {
                     while (responses.TryDequeue(out var response))
                     {
+                        Console.WriteLine($"{DateTime.Now:s}: Handling response...");
                         if (response.UpdateMessage)
                         {
                             await botClient.EditMessageReplyMarkupAsync(response.ChatId,
-                                response.UpdatingMessageId, response.InlineKeyboardMarkup,
-                                cancellationToken);
+                                    response.UpdatingMessageId,
+                                    response.InlineKeyboardMarkup,
+                                    cancellationToken)
+                                .ConfigureAwait(false);
                         }
                         else
                         {
@@ -154,7 +178,7 @@ namespace TelegramVoteBot.ApiClient
                 {
                     var color = Console.ForegroundColor;
                     Console.ForegroundColor = ConsoleColor.Red;
-                    Console.WriteLine(e);
+                    Console.WriteLine($"{DateTime.Now:s}: {e}");
                     Console.ForegroundColor = color;
                 }
 
@@ -167,22 +191,26 @@ namespace TelegramVoteBot.ApiClient
             ConcurrentQueue<Response> responses, long? workingChatId,
             CancellationToken cancellationToken)
         {
+            var isMessageContainingCommands = message.Entities?
+                .Where(e => e.Type == MessageEntityType.BotCommand)
+                .Any();
+
+            if (isMessageContainingCommands is null || isMessageContainingCommands == false)
+            {
+                Console.WriteLine($"{DateTime.Now:s}: Message contains no command");
+                return;
+            }
+
             string responseText;
             InlineKeyboardMarkup inlineKeyboardMarkup = null;
 
             if (workingChatId != null && message.Chat.Id != workingChatId)
             {
+                Console.WriteLine($"{DateTime.Now:s}: Wrong chat id");
                 responseText = "Вронг чят айди";
             }
             else
             {
-                var isMessageContainingCommands = message.Entities?
-                    .Where(e => e.Type == MessageEntityType.BotCommand)
-                    .Any();
-
-                if (isMessageContainingCommands is null || isMessageContainingCommands == false)
-                    return;
-
                 var messageTokens = message.Text?
                     .Replace("@nordic_vote_bot", string.Empty)
                     .Split(" ", StringSplitOptions.RemoveEmptyEntries);
@@ -193,7 +221,6 @@ namespace TelegramVoteBot.ApiClient
                 switch (messageTokens[0])
                 {
                     case "/list":
-                        responseText = "Нажмите на кнопку для голосования за понравившийся проект";
                         var projects = await _db.Projects
                             .Include(p => p.Votes)
                             .OrderBy(p => p.Id)
@@ -202,54 +229,14 @@ namespace TelegramVoteBot.ApiClient
                         if (!projects.Any())
                         {
                             inlineKeyboardMarkup = InlineKeyboardMarkup.Empty();
+                            responseText = string.Empty;
                             break;
                         }
 
-                        var sb = new StringBuilder();
-                        var buttons = new InlineKeyboardButton[projects.Count][];
+                        var messageContent = PrepareMessageContent(projects);
 
-                        for (int i = 0; i < projects.Count; i++)
-                        {
-                            var currentProject = projects[i];
-                            buttons[i] = new InlineKeyboardButton[1];
-                            var votesCount = currentProject.Votes.Count;
-                            string votesText;
-
-                            if (votesCount % 10 == 0)
-                            {
-                                votesText = $"{votesCount} голосов";
-                            }
-                            else if (votesCount % 10 == 1 && votesCount % 100 != 11)
-                            {
-                                votesText = $"{votesCount} голос";
-                            }
-                            else if (votesCount % 10 > 1 && votesCount % 10 < 5)
-                            {
-                                if (votesCount % 100 > 11 && votesCount % 100 < 15)
-                                    votesText = $"{votesCount} голосов";
-                                else
-                                    votesText = $"{votesCount} голоса";
-                            }
-                            else
-                            {
-                                votesText = $"{votesCount} голосов";
-                            }
-
-                            buttons[i][0] =
-                                InlineKeyboardButton.WithCallbackData($"Проект №{currentProject.Id}: {votesText}", currentProject.Id.ToString());
-                            sb.AppendLine($"Проект №{currentProject.Id}: {currentProject.Name}")
-                                .AppendLine($"Автор {currentProject.Author}");
-
-                            foreach (var url in currentProject.Urls)
-                            {
-                                sb.AppendLine(url);
-                            }
-
-                            sb.AppendLine();
-                        }
-
-                        responseText = sb.ToString();
-                        inlineKeyboardMarkup = new InlineKeyboardMarkup(buttons);
+                        responseText = messageContent.ResponseText;
+                        inlineKeyboardMarkup = messageContent.InlineKeyboardMarkup;
                         break;
 
                     default:
@@ -281,7 +268,6 @@ namespace TelegramVoteBot.ApiClient
             if (!(await projects.AnyAsync(cancellationToken)))
                 return;
 
-            InlineKeyboardMarkup inlineKeyboardMarkup = null;
             var message = callbackQuery.Message;
             var projectId = int.Parse(callbackQuery.Data);
             var userId = callbackQuery.From.Id;
@@ -316,6 +302,23 @@ namespace TelegramVoteBot.ApiClient
             if (message is null)
                 return;
 
+            var messageContent = PrepareMessageContent(updatedProjects);
+
+            var response = new Response
+            {
+                ChatId = message.Chat.Id,
+                Message = messageContent.ResponseText,
+                ReplyToMessageId = message.MessageId,
+                InlineKeyboardMarkup = messageContent.InlineKeyboardMarkup,
+                UpdateMessage = true,
+                UpdatingMessageId = message.MessageId
+            };
+
+            responses.Enqueue(response);
+        }
+
+        private PreparedMessageContent PrepareMessageContent(List<Project> updatedProjects)
+        {
             var sb = new StringBuilder();
             var buttons = new InlineKeyboardButton[updatedProjects.Count][];
 
@@ -323,31 +326,9 @@ namespace TelegramVoteBot.ApiClient
             {
                 var currentProject = updatedProjects[i];
                 buttons[i] = new InlineKeyboardButton[1];
-                var votesCount = currentProject.Votes.Count;
-                string votesText;
-
-                if (votesCount % 10 == 0)
-                {
-                    votesText = $"{votesCount} голосов";
-                }
-                else if (votesCount % 10 == 1 && votesCount % 100 != 11)
-                {
-                    votesText = $"{votesCount} голос";
-                }
-                else if (votesCount % 10 > 1 && votesCount % 10 < 5)
-                {
-                    if (votesCount % 100 > 11 && votesCount % 100 < 15)
-                        votesText = $"{votesCount} голосов";
-                    else
-                        votesText = $"{votesCount} голоса";
-                }
-                else
-                {
-                    votesText = $"{votesCount} голосов";
-                }
 
                 buttons[i][0] =
-                    InlineKeyboardButton.WithCallbackData($"Проект №{currentProject.Id}: {votesText}",
+                    InlineKeyboardButton.WithCallbackData($"Проект №{currentProject.Id}",
                         currentProject.Id.ToString());
                 sb.AppendLine($"Проект №{currentProject.Id}: {currentProject.Name}")
                     .AppendLine($"Автор {currentProject.Author}");
@@ -360,21 +341,13 @@ namespace TelegramVoteBot.ApiClient
                 sb.AppendLine();
             }
 
-
-            var responseText = sb.ToString();
-            inlineKeyboardMarkup = new InlineKeyboardMarkup(buttons);
-
-            var response = new Response
+            var result = new PreparedMessageContent
             {
-                ChatId = message.Chat.Id,
-                Message = responseText,
-                ReplyToMessageId = message.MessageId,
-                InlineKeyboardMarkup = inlineKeyboardMarkup,
-                UpdateMessage = true,
-                UpdatingMessageId = message.MessageId
+                ResponseText = sb.ToString(),
+                InlineKeyboardMarkup = new InlineKeyboardMarkup(buttons)
             };
 
-            responses.Enqueue(response);
+            return result;
         }
     }
 }

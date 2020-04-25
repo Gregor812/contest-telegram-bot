@@ -1,4 +1,5 @@
-﻿using Telegram.Bot.Types.ReplyMarkups;
+﻿using Telegram.Bot.Types.Enums;
+using Telegram.Bot.Types.ReplyMarkups;
 
 namespace TelegramVoteBot.ApiClient.Models
 {
@@ -10,5 +11,6 @@ namespace TelegramVoteBot.ApiClient.Models
         public InlineKeyboardMarkup InlineKeyboardMarkup { get; set; }
         public bool UpdateMessage { get; set; }
         public int UpdatingMessageId { get; set; }
+        public ParseMode ParseMode { get; set; }
     }
 }

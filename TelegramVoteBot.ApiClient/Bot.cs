@@ -169,6 +169,7 @@ namespace TelegramVoteBot.ApiClient
                                     replyToMessageId: response.ReplyToMessageId,
                                     replyMarkup: response.InlineKeyboardMarkup,
                                     disableWebPagePreview: true,
+                                    parseMode: response.ParseMode,
                                     cancellationToken: cancellationToken)
                                 .ConfigureAwait(false);
                         }
@@ -277,6 +278,13 @@ namespace TelegramVoteBot.ApiClient
             var message = callbackQuery.Message;
             var projectId = int.Parse(callbackQuery.Data);
             var userId = callbackQuery.From.Id;
+            var username = callbackQuery.From.Username;
+            var userFirstName = callbackQuery.From.FirstName;
+            var userMention = username is null ? 
+                $"[{userFirstName}](tg://user?id={userId})" :
+                $"@{username}";
+
+            string responseMessage;
 
             var alreadyExistingVote = await _db.Votes
                 .FirstOrDefaultAsync(v => v.TelegramUserId == userId, cancellationToken);
@@ -285,18 +293,21 @@ namespace TelegramVoteBot.ApiClient
             {
                 if (alreadyExistingVote.ProjectId == projectId)
                 {
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {callbackQuery.From.Username ?? callbackQuery.From.FirstName} (id{callbackQuery.From.Id} canceled vote");
+                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {username ?? userFirstName} (id{userId}) canceled vote");
+                    responseMessage = $"{userMention} id{ callbackQuery.From.Id} отменил голос";
                     _db.Votes.Remove(alreadyExistingVote);
                 }
                 else
                 {
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {callbackQuery.From.Username ?? callbackQuery.From.FirstName} (id{callbackQuery.From.Id} revoted");
+                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {username ?? userFirstName} (id{callbackQuery.From.Id}) revoted");
+                    responseMessage = $"{userMention} id{ callbackQuery.From.Id} изменил свой голос";
                     alreadyExistingVote.ProjectId = projectId;
                 }
             }
             else
             {
-                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {callbackQuery.From.Username ?? callbackQuery.From.FirstName} (id{callbackQuery.From.Id} voted");
+                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {username ?? userFirstName} (id{callbackQuery.From.Id}) voted");
+                responseMessage = $"{userMention} id{ callbackQuery.From.Id} проголосовал";
                 await _db.Votes.AddAsync(new Vote
                 {
                     ProjectId = projectId,
@@ -306,21 +317,14 @@ namespace TelegramVoteBot.ApiClient
 
             await _db.SaveChangesAsync(cancellationToken);
 
-            var updatedProjects = await projects.ToListAsync(cancellationToken);
-
             if (message is null)
                 return;
-
-            var messageContent = PrepareMessageContent(updatedProjects);
 
             var response = new Response
             {
                 ChatId = message.Chat.Id,
-                Message = messageContent.ResponseText,
-                ReplyToMessageId = message.MessageId,
-                InlineKeyboardMarkup = messageContent.InlineKeyboardMarkup,
-                UpdateMessage = true,
-                UpdatingMessageId = message.MessageId
+                Message = responseMessage,
+                ParseMode = username is null ? ParseMode.MarkdownV2 : ParseMode.Default
             };
 
             responses.Enqueue(response);

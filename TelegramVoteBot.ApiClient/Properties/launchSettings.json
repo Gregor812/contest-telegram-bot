@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "TelegramVoteBot.ApiClient": {
+      "commandName": "Project"
+    },
+    "Docker": {
+      "commandName": "Docker"
+    }
+  }
+}

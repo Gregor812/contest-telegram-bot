@@ -29,7 +29,7 @@ namespace TelegramVoteBot.ApiClient
         {
             _botConfig = botConfig ??
                 throw new ArgumentNullException(nameof(botConfig));
-            _db = db ?? 
+            _db = db ??
                 throw new ArgumentNullException(nameof(db));
         }
 
@@ -39,9 +39,10 @@ namespace TelegramVoteBot.ApiClient
 
             var gettingUpdatesTask = StartGettingUpdatesAsync(botClient,
                 _updates, cancellationToken);
-            var handlingUpdatesTask = StartUpdatesHandlingAsync(_updates,
-                _responses, _botConfig.WorkingChatId, cancellationToken);
-            var handlingResponsesTask =StartResponsesHandlingAsync(botClient,
+            var handlingUpdatesTask = StartUpdatesHandlingAsync(
+                botClient, _updates, _responses,
+                _botConfig.WorkingChatId, cancellationToken);
+            var handlingResponsesTask = StartResponsesHandlingAsync(botClient,
                 _responses, cancellationToken);
 
             await Task.WhenAll(gettingUpdatesTask,
@@ -56,20 +57,20 @@ namespace TelegramVoteBot.ApiClient
             CancellationToken cancellationToken)
         {
             int updatesOffset = 0;
+            Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: Getting bot updates...");
 
             while (true)
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 try
                 {
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: Getting bot updates...");
-
                     var newUpdates = await botClient
                         .GetUpdatesAsync(offset: updatesOffset, limit: 50,
                             cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
 
-                    Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {newUpdates.Length} new update(s)");
+                    if (newUpdates.Length > 0)
+                        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {newUpdates.Length} new update(s)");
 
                     if (newUpdates.Any())
                     {
@@ -94,6 +95,7 @@ namespace TelegramVoteBot.ApiClient
         }
 
         private async Task StartUpdatesHandlingAsync(
+            TelegramBotClient botClient,
             ConcurrentQueue<Update> updates,
             ConcurrentQueue<Response> responses,
             long? workingChatId,
@@ -118,7 +120,7 @@ namespace TelegramVoteBot.ApiClient
                         {
                             case UpdateType.Message:
                                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: Handling message update...");
-                                await HandleNewMessageAsync(update.Message, responses,
+                                await HandleNewMessageAsync(botClient, update.Message, responses,
                                         workingChatId, cancellationToken)
                                     .ConfigureAwait(false);
                                 break;
@@ -188,7 +190,8 @@ namespace TelegramVoteBot.ApiClient
             }
         }
 
-        private async Task HandleNewMessageAsync(Message message,
+        private async Task HandleNewMessageAsync(
+            TelegramBotClient botClient, Message message,
             ConcurrentQueue<Response> responses, long? workingChatId,
             CancellationToken cancellationToken)
         {
@@ -204,11 +207,22 @@ namespace TelegramVoteBot.ApiClient
 
             string responseText;
             InlineKeyboardMarkup inlineKeyboardMarkup = null;
+            var isUserWorkingChatMember = true;
 
-            if (workingChatId != null && message.Chat.Id != workingChatId)
+            if (workingChatId != null)
             {
-                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: Wrong chat id");
-                responseText = "Вронг чят айди";
+                if (workingChatId == message.Chat.Id)
+                    return;
+
+                isUserWorkingChatMember = await IsUserAWorkingChatMemberAsync(botClient, message.From,
+                        workingChatId.Value, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+
+            if (!isUserWorkingChatMember)
+            {
+                Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {message.From.Username ?? message.From.FirstName} (id{message.From.Id})");
+                responseText = "Голос не учитывается, т.к. вы не являетесь участником чата Nordic Energy";
             }
             else
             {
@@ -237,7 +251,7 @@ namespace TelegramVoteBot.ApiClient
                             break;
                         }
 
-                        var messageContent = PrepareMessageContent(projects);
+                        var messageContent = PrepareMessageContent(projects, message.From.Id);
 
                         responseText = messageContent.ResponseText;
                         inlineKeyboardMarkup = messageContent.InlineKeyboardMarkup;
@@ -265,6 +279,19 @@ namespace TelegramVoteBot.ApiClient
             responses.Enqueue(response);
         }
 
+        private async Task<bool> IsUserAWorkingChatMemberAsync(
+            TelegramBotClient botClient,
+            User user, long workingChatId,
+            CancellationToken cancellationToken)
+        {
+            var chatMember = await botClient.GetChatMemberAsync(
+                new ChatId(workingChatId), user.Id, cancellationToken);
+            var status = chatMember.Status;
+            return status == ChatMemberStatus.Creator ||
+                   status == ChatMemberStatus.Administrator ||
+                   status == ChatMemberStatus.Member;
+        }
+
         private async Task HandleNewCallbackQueryAsync(CallbackQuery callbackQuery,
             ConcurrentQueue<Response> responses, CancellationToken cancellationToken)
         {
@@ -280,12 +307,10 @@ namespace TelegramVoteBot.ApiClient
             var userId = callbackQuery.From.Id;
             var username = callbackQuery.From.Username;
             var userFirstName = callbackQuery.From.FirstName;
-            var userMention = username is null ? 
+            var userMention = username is null ?
                 $"[{userFirstName}](tg://user?id={userId})" :
                 $"@{username}";
-
-            string responseMessage;
-
+            
             var alreadyExistingVote = await _db.Votes
                 .FirstOrDefaultAsync(v => v.TelegramUserId == userId, cancellationToken);
 
@@ -294,24 +319,23 @@ namespace TelegramVoteBot.ApiClient
                 if (alreadyExistingVote.ProjectId == projectId)
                 {
                     Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {username ?? userFirstName} (id{userId}) canceled vote");
-                    responseMessage = $"{userMention} id{ callbackQuery.From.Id} отменил голос";
                     _db.Votes.Remove(alreadyExistingVote);
                 }
                 else
                 {
                     Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {username ?? userFirstName} (id{callbackQuery.From.Id}) revoted");
-                    responseMessage = $"{userMention} id{ callbackQuery.From.Id} изменил свой голос";
                     alreadyExistingVote.ProjectId = projectId;
+                    alreadyExistingVote.LastModified = DateTime.Now;
                 }
             }
             else
             {
                 Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {username ?? userFirstName} (id{callbackQuery.From.Id}) voted");
-                responseMessage = $"{userMention} id{ callbackQuery.From.Id} проголосовал";
                 await _db.Votes.AddAsync(new Vote
                 {
                     ProjectId = projectId,
-                    TelegramUserId = userId
+                    TelegramUserId = userId,
+                    LastModified = DateTime.Now
                 }, cancellationToken);
             }
 
@@ -320,17 +344,25 @@ namespace TelegramVoteBot.ApiClient
             if (message is null)
                 return;
 
+            var unsortedProjects = await _db.Projects
+                .Include(p => p.Votes)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+            var content = PrepareMessageContent(unsortedProjects, userId);
+
             var response = new Response
             {
                 ChatId = message.Chat.Id,
-                Message = responseMessage,
-                ParseMode = username is null ? ParseMode.MarkdownV2 : ParseMode.Default
+                Message = content.ResponseText,
+                InlineKeyboardMarkup = content.InlineKeyboardMarkup,
+                UpdatingMessageId = message.MessageId,
+                UpdateMessage = true
             };
 
             responses.Enqueue(response);
         }
 
-        private PreparedMessageContent PrepareMessageContent(List<Project> projects)
+        private PreparedMessageContent PrepareMessageContent(List<Project> projects, long userId)
         {
             var sb = new StringBuilder();
             var buttons = new InlineKeyboardButton[projects.Count][];
@@ -340,8 +372,12 @@ namespace TelegramVoteBot.ApiClient
                 var currentProject = projects[i];
                 buttons[i] = new InlineKeyboardButton[1];
 
+                var text = currentProject.Votes.Any(v => v.TelegramUserId == userId)
+                    ? $"Проект №{currentProject.Id} ✅"
+                    : $"Проект №{currentProject.Id}";
+
                 buttons[i][0] =
-                    InlineKeyboardButton.WithCallbackData($"Проект №{currentProject.Id}",
+                    InlineKeyboardButton.WithCallbackData(text,
                         currentProject.Id.ToString());
                 sb.AppendLine($"Проект №{currentProject.Id}: {currentProject.Name}")
                     .AppendLine($"Автор {currentProject.Author}");

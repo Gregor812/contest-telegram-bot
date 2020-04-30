@@ -3,7 +3,9 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30011.22
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TelegramVoteBot.ApiClient", "TelegramVoteBot.ApiClient\TelegramVoteBot.ApiClient.csproj", "{FBA9E6F1-A7A0-4094-BA3D-58024B429A47}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TelegramVoteBot.ApiClient", "TelegramVoteBot.ApiClient\TelegramVoteBot.ApiClient.csproj", "{FBA9E6F1-A7A0-4094-BA3D-58024B429A47}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TelegramVoteBot.ResultViewer", "TelegramVoteBot.ResultViewer\TelegramVoteBot.ResultViewer.csproj", "{38FC35E9-A09A-4D40-B5A7-51DF509FB270}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{FBA9E6F1-A7A0-4094-BA3D-58024B429A47}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{FBA9E6F1-A7A0-4094-BA3D-58024B429A47}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{FBA9E6F1-A7A0-4094-BA3D-58024B429A47}.Release|Any CPU.Build.0 = Release|Any CPU
+		{38FC35E9-A09A-4D40-B5A7-51DF509FB270}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{38FC35E9-A09A-4D40-B5A7-51DF509FB270}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{38FC35E9-A09A-4D40-B5A7-51DF509FB270}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{38FC35E9-A09A-4D40-B5A7-51DF509FB270}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

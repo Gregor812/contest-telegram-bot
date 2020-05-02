@@ -1,9 +1,9 @@
 ﻿using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using System;
-using TelegramVoteBot.ApiClient.Entities;
+using TelegramVoteBot.ResultViewer.Entities;
 
-namespace TelegramVoteBot.ApiClient.Persistence
+namespace TelegramVoteBot.ResultViewer.Persistence
 {
     public class BotDbContext : DbContext
     {

@@ -69,11 +69,10 @@ namespace TelegramVoteBot.ApiClient
                             cancellationToken: cancellationToken)
                         .ConfigureAwait(false);
 
-                    if (newUpdates.Length > 0)
-                        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {newUpdates.Length} new update(s)");
-
                     if (newUpdates.Any())
                     {
+                        Console.WriteLine($"[{Thread.CurrentThread.ManagedThreadId}] {DateTime.Now:s}: {newUpdates.Length} new update(s)");
+
                         updatesOffset = newUpdates.Select(u => u.Id).Max() + 1;
                         foreach (var update in newUpdates)
                         {

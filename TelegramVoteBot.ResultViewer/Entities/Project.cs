@@ -1,6 +1,6 @@
 ﻿using System.Collections.Generic;
 
-namespace TelegramVoteBot.ApiClient.Entities
+namespace TelegramVoteBot.ResultViewer.Entities
 {
     public class Project
     {
